@@ -3,58 +3,15 @@ import numpy as np
 from math import log, ceil
 
 from openbox import Observation
-from openbox.core.sync_batch_advisor import SyncBatchAdvisor
+
+from base import BaseMFOptimizer
 
 
-class BOHB(object):
+class HyperbandOptimizer(BaseMFOptimizer):
     def __init__(self, config_space, mode='smac', seed=1, R=27, eta=3, n_jobs=1):
-        self.config_space = config_space
-        self.mode = mode
-        self.n_workers = n_jobs
-
-        self.trial_cnt = 0
-        self.configs = list()
-        self.perfs = list()
-        self.incumbent_perf = float("-INF")
-        self.incumbent_config = self.config_space.get_default_configuration()
-        self.incumbent_configs = list()
-        self.incumbent_perfs = list()
-        self.global_start_time = time.time()
-
-        # Parameters in Hyperband framework.
-        self.restart_needed = True
-        self.R = R
-        self.eta = eta
-        self.seed = seed
-        self.logeta = lambda x: log(x) / log(self.eta)
-        self.s_max = int(self.logeta(self.R))
-        self.B = (self.s_max + 1) * self.R
-        self.s_values = list(reversed(range(self.s_max + 1)))
-        self.inner_iter_id = 0
-        self.n_resource = 0
-
-        # Parameters in BOHB.
-        self.iterate_r = list()
-        self.target_x = dict()
-        self.target_y = dict()
-        self.exp_output = dict()
-        for index, item in enumerate(np.logspace(0, self.s_max, self.s_max + 1, base=self.eta)):
-            r = int(item)
-            self.iterate_r.append(r)
-            self.target_x[r] = list()
-            self.target_y[r] = list()
-
-        self.mf_advisor = SyncBatchAdvisor(config_space=config_space,
-                                           surrogate_type='prf',
-                                           acq_type='ei',
-                                           acq_optimizer_type='local_random')
-
-        self.eval_dict = dict()
-        self.T = []
-        self.tmp_history_dict = dict()
-        self.val_losses = []
-        self.s = self.s_values[0]
-        self.inner_loop_cnt = 0
+        super().__init__(config_space=config_space,
+                         seed=seed, R=R,
+                         eta=eta, n_jobs=n_jobs)
 
     def get_suggestions(self, skip_last=0):
         # Set initial number of configurations
@@ -64,9 +21,9 @@ class BOHB(object):
 
         if self.inner_loop_cnt == 0:
             print("Suggest a new batch of configurations for the new inner loop.")
-            # Suggest a new batch of configurations.
+            # Suggest a new batch of configurations. Hyperband: Random selection
             start_time = time.time()
-            self.T = self.mf_advisor.get_suggestions(batch_size=n)
+            self.T = self.config_space.sample_configuration(n)
             time_elapsed = time.time() - start_time
             print("Choosing next batch of configurations took %.2f sec." % time_elapsed)
         else:
@@ -105,13 +62,6 @@ class BOHB(object):
         if self.n_resource == self.R:
             self.incumbent_configs.extend(self.T)
             self.incumbent_perfs.extend(self.val_losses)
-
-            # Update the underlying advisor
-            for config in history_dict:
-                observation = Observation(config=config, objs=[history_dict[config]])
-                self.mf_advisor.update_observation(observation)
-            print("BOHB optimizer updated!")
-
             inc_idx = np.argmin(np.array(self.incumbent_perfs))
             self.perfs = self.incumbent_perfs
             self.configs = self.incumbent_configs

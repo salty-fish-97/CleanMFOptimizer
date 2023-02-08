@@ -17,9 +17,14 @@ def test_func(config, resource_ratio):
     return config['x1'] * resource_ratio
 
 
-from BOHB import BOHB
+import os
+import sys
 
-optimizer = BOHB(config_space=cs, mode='smac')
+sys.path.append(os.getcwd())
+from bohb import BOHBOptimizer
+from hyperband import HyperbandOptimizer
+
+optimizer = BOHBOptimizer(config_space=cs, mode='smac')
 
 budget = 3
 start_time = time.time()
