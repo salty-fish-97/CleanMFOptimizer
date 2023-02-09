@@ -23,10 +23,11 @@ import sys
 sys.path.append(os.getcwd())
 from bohb import BOHBOptimizer
 from hyperband import HyperbandOptimizer
+from mfes import MFESOptimizer
 
-optimizer = BOHBOptimizer(config_space=cs, mode='smac')
+optimizer = MFESOptimizer(config_space=cs)
 
-budget = 3
+budget = 10
 start_time = time.time()
 
 while time.time() - start_time < budget:

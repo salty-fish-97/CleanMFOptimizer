@@ -2,10 +2,12 @@ import time
 import numpy as np
 from math import log, ceil
 
+
 class BaseMFOptimizer(object):
     def __init__(self, config_space, seed=1, R=27, eta=3, n_jobs=1):
         self.config_space = config_space
         self.n_workers = n_jobs
+        self.name = None
 
         self.trial_cnt = 0
         self.configs = list()
@@ -58,7 +60,7 @@ class BaseMFOptimizer(object):
             print("Suggest a new batch of configurations for the new inner loop.")
             # Suggest a new batch of configurations.
             start_time = time.time()
-            self.T = self.mf_advisor.get_suggestions(batch_size=n)
+            self.T = self.mf_advisor.get_suggestions(n)
             time_elapsed = time.time() - start_time
             print("Choosing next batch of configurations took %.2f sec." % time_elapsed)
         else:
@@ -73,8 +75,11 @@ class BaseMFOptimizer(object):
                 self.T = [self.T[indices[0]]]
 
         self.n_resource = r * self.eta ** self.inner_loop_cnt
-        print("BOHB: %d configurations x size %d / %d each" %
-              (len(self.T), self.n_resource, self.R))
+
+        # In case the optimizer suggests the same configuration
+        self.T = list(set(self.T))
+        print("%s: %d configurations x size %d / %d each" %
+              (self.name, len(self.T), self.n_resource, self.R))
 
         self.inner_loop_cnt = (self.inner_loop_cnt + 1) % (self.s + 1)
         if self.inner_loop_cnt == 0:
