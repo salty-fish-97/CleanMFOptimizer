@@ -3,8 +3,8 @@ import numpy as np
 from math import log, ceil
 
 from openbox import Observation
-from openbox.core.tpe_advisor import TPE_Advisor
 
+from tpe_for_bohb import TPE_Advisor
 from base import BaseMFOptimizer
 
 
@@ -17,6 +17,7 @@ class BOHBOptimizer_tpe(BaseMFOptimizer):
         self.mode = mode
         self.name = 'BOHB_TPE'
         self.mf_advisor = TPE_Advisor(config_space=config_space)
+        self.min_points_in_model = len(self.config_space.get_hyperparameters()) + 1
 
     def get_suggestions(self, skip_last=0):
         # Set initial number of configurations
@@ -28,9 +29,7 @@ class BOHBOptimizer_tpe(BaseMFOptimizer):
             print("Suggest a new batch of configurations for the new inner loop.")
             # Suggest a new batch of configurations.
             start_time = time.time()
-            self.T = []
-            for _ in range(n):
-                self.T.append(self.mf_advisor.get_suggestion())
+            self.T = self.mf_advisor.get_suggestions(n)
             time_elapsed = time.time() - start_time
             print("Choosing next batch of configurations took %.2f sec." % time_elapsed)
         else:
@@ -74,10 +73,22 @@ class BOHBOptimizer_tpe(BaseMFOptimizer):
             self.incumbent_perfs.extend(self.val_losses)
 
             # Update the underlying advisor
-            for config in history_dict:
-                observation = Observation(config=config, objectives=[history_dict[config]])
-                self.mf_advisor.update_observation(observation)
+            for i in self.s_values:
+                target_resource = int(pow(self.eta, i))
+                # Note: If the number of high-fidelity observations is less than N_min, use low-fidelity obs instead.
+                if len(self.target_x[target_resource]) < self.min_points_in_model * 2:
+                    continue
+                self.mf_advisor = TPE_Advisor(config_space=self.config_space)
+                for idx, config in enumerate(self.target_x[target_resource]):
+                    observation = Observation(config=config, objectives=[self.target_y[target_resource][idx]])
+                    self.mf_advisor.update_observation(observation)
+                break
             print("BOHB optimizer updated!")
+
+            # for config in history_dict:
+            #     observation = Observation(config=config, objectives=[history_dict[config]])
+            #     self.mf_advisor.update_observation(observation)
+            # print("BOHB optimizer updated!")
 
             inc_idx = np.argmin(np.array(self.incumbent_perfs))
             self.perfs = self.incumbent_perfs
